@@ -2,7 +2,8 @@
 
 The Titanic MCP Server lets AI agents of other teams read and change the Titanic database through the
 Model Context Protocol (MCP). The server controls which agent can see which data, records each access, and
-operates in Kubernetes. The specification is the Claude Doc "Titanic MCP Server – Specification".
+operates in Kubernetes. The full specification is in [docs/specification.md](docs/specification.md): requirements with
+IDs, the decisions OP-01 to OP-09, and the deviations of the implementation (section 16).
 
 ## Overview
 
@@ -82,14 +83,14 @@ charts/titanic-mcp/  Helm chart (Deployment, HPA, PDB, NetworkPolicy, ServiceMon
 deploy/kind/         demo cluster: kind config, Keycloak, PostgreSQL, Jaeger, monitoring values
 deploy/compose/      local environment with Docker Compose
 dashboards/          Grafana dashboard (JSON)
-docs/                onboarding guide, runbooks, architecture decisions
+docs/                specification, onboarding guide, runbooks, architecture decisions
 .github/workflows/   CI and release pipelines (not run for the demo)
 ```
 
 ## Configuration
 
 The server reads all settings from `TMCP_*` environment variables. Refer to `src/tmcp/config.py` and the
-specification, section 10. Important values:
+[specification, section 10](docs/specification.md#10-configuration-and-secrets). Important values:
 
 | Variable | Function |
 | --- | --- |
