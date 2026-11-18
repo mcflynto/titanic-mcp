@@ -1,0 +1,73 @@
+[project]
+name = "titanic-mcp"
+version = "1.0.0"
+description = "Production-ready MCP server that gives AI agents governed access to the Titanic database."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "anyio>=4.6",
+    "asyncpg>=0.32.0",
+    "fastapi>=0.163.2",
+    "mcp>=2.3.0,<3",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.45.2",
+    "opentelemetry-instrumentation-fastapi>=0.66b2",
+    "opentelemetry-sdk>=1.45.2",
+    "prometheus-client>=0.26.0",
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "pyjwt[crypto]>=2.15.1",
+    "python-ulid>=4.2.0",
+    "pyyaml>=6.0.3",
+    "sqlglot>=30.33.0",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+titanic-mcp = "tmcp.main:run"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "tmcp"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.17.5",
+    "types-pyyaml>=6.0.12.20261113",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
+testpaths = ["tests"]
+markers = ["postgres: needs Docker to start a PostgreSQL container"]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.coverage.run]
+source = ["tmcp"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "ASYNC", "RUF"]
+ignore = ["S101", "S608"]  # assert in tests; SQL is built from an AST with bound parameters
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "B"]
+"scripts/**" = ["S", "E501", "ASYNC220"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+ignore_missing_imports = true
+plugins = ["pydantic.mypy"]

@@ -1,0 +1,12 @@
+# Demo cluster (spec section 11, environment "Demo"). Host ports are high to avoid conflicts.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: titanic-mcp-demo
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - {containerPort: 30080, hostPort: 18080, protocol: TCP}   # MCP server
+      - {containerPort: 30081, hostPort: 18081, protocol: TCP}   # Keycloak (IdP)
+      - {containerPort: 30300, hostPort: 13000, protocol: TCP}   # Grafana
+      - {containerPort: 30090, hostPort: 19090, protocol: TCP}   # Prometheus
+      - {containerPort: 30686, hostPort: 16686, protocol: TCP}   # Jaeger UI

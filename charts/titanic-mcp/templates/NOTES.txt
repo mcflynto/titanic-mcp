@@ -1,0 +1,8 @@
+Titanic MCP Server {{ .Chart.AppVersion }} is installed.
+
+MCP endpoint:      {{ .Values.config.resourceUrl }}
+Authentication:    {{ .Values.config.auth.mode }}
+Replicas:          {{ if .Values.autoscaling.enabled }}{{ .Values.autoscaling.minReplicas }}-{{ .Values.autoscaling.maxReplicas }} (HPA){{ else }}{{ .Values.replicaCount }}{{ end }}
+
+Examine the rollout:  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "tmcp.fullname" . }}
+Rollback (DEP-04):    helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }}

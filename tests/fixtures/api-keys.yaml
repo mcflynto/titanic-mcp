@@ -1,0 +1,17 @@
+# Local development only (AUTH-05). Placeholder keys: 'dev-key-<agent-id>'. NEVER use in staging/production.
+# Make a hash with: python scripts/hash_api_key.py <key>
+keys:
+  - agent_id: reporting-agent
+    sha256: c4aed4d38a99c5a67a53b42b3ea77a0df4da7b1ed7caae282ccf7772ebd155b7
+  - agent_id: churn-agent
+    sha256: be7814eb5bc22d8fd7c6277a1e2df0f080c71ef6aaae2d4f5afd7094aa10b0e9
+  - agent_id: steerage-agent
+    sha256: ed0e4e737db893dacbb588ebd81e772f2c60c7ceb3980b277976e7df4ba907ba
+  - agent_id: research-agent
+    sha256: 662e5d7b77447627a1b50a80dbcb2bee998fdda00dc7b6ff647d2d803171848d
+  - agent_id: curation-agent
+    sha256: 74288f5f5aa0fdb750cf6235af119277aaee3f63306774894581c23443be4d4b
+  - agent_id: review-agent
+    sha256: 1938c9ecfbf556e90b4eb5c0c74ddaac6a890fda0ccc87d354c769449694ffc5
+  - agent_id: outsider-agent
+    sha256: c689a5773e560cd62d009cfd379c91c806009e8e89133ba69ace9977bcd6ab75

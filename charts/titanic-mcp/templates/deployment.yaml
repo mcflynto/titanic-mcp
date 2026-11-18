@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "tmcp.fullname" . }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels: {{- include "tmcp.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels: {{- include "tmcp.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "tmcp.fullname" . }}
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: {type: RuntimeDefault}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "tmcp.selectorLabels" . | nindent 14 }}
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels: {{- include "tmcp.selectorLabels" . | nindent 14 }}
+      containers:
+        - name: titanic-mcp
+          {{- if .Values.image.digest }}
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          {{- else }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - {name: http, containerPort: 8000}
+            - {name: metrics, containerPort: 9090}
+          env:
+            - {name: TMCP_ENV, value: {{ .Values.config.env | quote }}}
+            - {name: TMCP_LOG_LEVEL, value: {{ .Values.config.logLevel | quote }}}
+            - {name: TMCP_RESOURCE_URL, value: {{ .Values.config.resourceUrl | quote }}}
+            - {name: TMCP_ALLOWED_HOSTS, value: {{ .Values.config.allowedHosts | quote }}}
+            - {name: TMCP_ALLOWED_ORIGINS, value: {{ .Values.config.allowedOrigins | quote }}}
+            - {name: TMCP_QUERY_TIMEOUT_S, value: {{ .Values.config.queryTimeoutS | quote }}}
+            - {name: TMCP_CHANGE_REQUEST_TTL_HOURS, value: {{ .Values.config.changeRequestTtlHours | quote }}}
+            - {name: TMCP_POLICY_PATH, value: /etc/tmcp/policy/policy.yaml}
+            - {name: TMCP_POLICY_RELOAD_INTERVAL_S, value: {{ .Values.config.policyReloadIntervalS | quote }}}
+            - {name: TMCP_AUTH_MODE, value: {{ .Values.config.auth.mode | quote }}}
+            {{- if eq .Values.config.auth.mode "jwt" }}
+            - {name: TMCP_JWT_ISSUER, value: {{ .Values.config.auth.issuer | quote }}}
+            - {name: TMCP_JWKS_URL, value: {{ .Values.config.auth.jwksUrl | quote }}}
+            - {name: TMCP_AGENT_ID_CLAIM, value: {{ .Values.config.auth.agentIdClaim | quote }}}
+            - {name: TMCP_TRUST_TOKEN_ROLES, value: {{ .Values.config.auth.trustTokenRoles | quote }}}
+            {{- else }}
+            - {name: TMCP_API_KEYS_FILE, value: /etc/tmcp/secrets/API_KEYS}
+            {{- end }}
+            {{- if .Values.config.tracing.otlpEndpoint }}
+            - {name: TMCP_OTEL_ENDPOINT, value: {{ .Values.config.tracing.otlpEndpoint | quote }}}
+            - {name: TMCP_TRACE_SAMPLE_RATE, value: {{ .Values.config.tracing.sampleRate | quote }}}
+            {{- end }}
+            {{- if .Values.workingDatabase.enabled }}
+            - name: TMCP_WORKING_DB_URL
+              valueFrom:
+                secretKeyRef: {name: {{ include "tmcp.secretName" . }}, key: WORKING_DB_URL}
+            {{- end }}
+          startupProbe:
+            httpGet: {path: /healthz/ready, port: http}
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet: {path: /healthz/ready, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: {path: /healthz/live, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 4
+          lifecycle:
+            # Give the endpoints controller time to remove the pod before uvicorn stops (CON-05).
+            preStop:
+              sleep: {seconds: 5}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          volumeMounts:
+            - {name: policy, mountPath: /etc/tmcp/policy, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+            {{- if ne .Values.config.auth.mode "jwt" }}
+            - {name: secrets, mountPath: /etc/tmcp/secrets, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: policy
+          configMap: {name: {{ include "tmcp.fullname" . }}-policy}
+        - name: tmp
+          emptyDir: {medium: Memory, sizeLimit: 64Mi}
+        {{- if ne .Values.config.auth.mode "jwt" }}
+        - name: secrets
+          secret:
+            secretName: {{ include "tmcp.secretName" . }}
+            items: [{key: API_KEYS, path: API_KEYS}]
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}

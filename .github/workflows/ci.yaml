@@ -1,0 +1,113 @@
+# Quality gates for each pull request (spec section 12). Not run for the demo; ready for the remote.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-and-types:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - run: uv sync --frozen
+      - run: uv run ruff check src tests scripts
+      - run: uv run ruff format --check src tests scripts
+      - run: uv run mypy src
+
+  test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env: {POSTGRES_USER: test, POSTGRES_PASSWORD: test, POSTGRES_DB: test}
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U test" --health-interval 3s --health-retries 20
+    env:
+      TMCP_TEST_PG_URL: postgresql://test:test@localhost:5432/test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {enable-cache: true}
+      - run: uv sync --frozen
+      - run: make data
+      - name: Unit and integration tests (TST-01, TST-02, QS-09)
+        run: uv run pytest --cov --cov-report=xml --cov-fail-under=85
+      - uses: actions/upload-artifact@v4
+        with: {name: coverage, path: coverage.xml}
+
+  security:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: astral-sh/setup-uv@v6
+      - run: uvx bandit -r src -q
+      - run: uv export --frozen --no-dev --format requirements-txt > requirements.txt && uvx pip-audit -r requirements.txt
+      - uses: gitleaks/gitleaks-action@v2
+        env: {GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"}
+
+  chart:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: helm lint (DEP-02)
+        run: |
+          helm lint charts/titanic-mcp
+          helm lint charts/titanic-mcp -f deploy/kind/values-demo.yaml
+      - name: kubeconform (DEP-02)
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          for values in charts/titanic-mcp/values.yaml deploy/kind/values-demo.yaml; do
+            helm template t charts/titanic-mcp -f "$values" | ./kubeconform -strict -summary \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+          done
+
+  image:
+    runs-on: ubuntu-24.04
+    needs: [lint-and-types, test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: titanic-mcp:ci
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy scan (CON-08)
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          image-ref: titanic-mcp:ci
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
+
+  e2e:
+    runs-on: ubuntu-24.04
+    needs: [image, chart]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - uses: helm/kind-action@v1
+        with: {install_only: true}
+      - name: Start the demo environment in kind (stage 7)
+        run: make demo
+      - name: Run the presentation scenario
+        run: make demo-run
+      - name: Rolling update without failed calls
+        run: make demo-rollout

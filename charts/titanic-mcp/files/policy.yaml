@@ -1,0 +1,87 @@
+# Titanic MCP Server - access policy (spec section 6).
+# Deny by default: an agent that is not in this file gets no tools.
+# Several roles give the union of their permissions (PERM-04).
+# The server loads a changed file without a restart (PERM-02). An invalid file is ignored and logged.
+version: 1
+
+roles:
+  schema-reader:
+    description: Schema only, no rows.
+    tools: [list_tables, describe_table]
+    datasets:
+      reference:
+        passengers: {}
+    limits: {max_rows: 1, requests_per_minute: 60, max_concurrency: 2}
+
+  statistician:
+    description: Aggregates only. Groups with fewer than 5 passengers are removed (k-anonymity).
+    tools: [list_tables, describe_table, aggregate_passengers]
+    datasets:
+      reference:
+        passengers: {}
+    min_group_size: 5
+    limits: {max_rows: 200, requests_per_minute: 60, max_concurrency: 4}
+
+  analyst:
+    description: Rows of the view passengers in both datasets. The column fare is masked.
+    tools: [list_tables, describe_table, get_sample_rows, query_passengers, aggregate_passengers]
+    datasets:
+      reference:
+        passengers: {columns: {deny: [fare]}}
+      working:
+        passengers: {columns: {deny: [fare]}}
+    limits: {max_rows: 500, requests_per_minute: 120, max_concurrency: 4}
+
+  analyst-third-class:
+    description: Like analyst, but only the rows of third-class passengers (row filter example).
+    tools: [list_tables, describe_table, get_sample_rows, query_passengers, aggregate_passengers]
+    datasets:
+      reference:
+        passengers: {columns: {deny: [fare]}, row_filter: "class = 'Third'"}
+    limits: {max_rows: 500, requests_per_minute: 120, max_concurrency: 4}
+
+  sql-analyst:
+    description: All tables and columns of the reference dataset, with free read-only SQL.
+    tools: [list_tables, describe_table, get_sample_rows, query_passengers, aggregate_passengers, run_sql]
+    datasets:
+      reference:
+        "*": {}
+    limits: {max_rows: 1000, requests_per_minute: 120, max_concurrency: 4, query_timeout_s: 5}
+
+  editor:
+    description: Proposes changes to the working dataset. Cannot approve them.
+    tools: [query_passengers, propose_passenger_insert, propose_passenger_update, propose_passenger_delete,
+            list_change_requests, get_change_request]
+    datasets:
+      working:
+        passengers: {}
+    limits: {max_rows: 500, requests_per_minute: 60, max_concurrency: 2}
+
+  approver:
+    description: Reviews the change requests of other agents (four-eyes rule).
+    tools: [query_passengers, list_change_requests, get_change_request, review_change_request]
+    datasets:
+      working:
+        passengers: {}
+    limits: {max_rows: 500, requests_per_minute: 60, max_concurrency: 2}
+
+agents:
+  # The keys are the agent IDs: the JWT claim "azp" (Keycloak client ID) or the API key owner.
+  reporting-agent:
+    description: Dashboard team. Needs statistics only.
+    roles: [statistician]
+  churn-agent:
+    description: Data science team. Needs single rows, but not the ticket price.
+    roles: [analyst]
+  steerage-agent:
+    description: Research on third-class passengers only.
+    roles: [analyst-third-class]
+  research-agent:
+    description: Analytics team. Needs free SQL.
+    roles: [sql-analyst]
+  curation-agent:
+    description: Data quality team. Corrects the working data.
+    roles: [analyst, editor]
+  review-agent:
+    description: Data steward. Approves corrections.
+    roles: [analyst, approver]

@@ -1,0 +1,42 @@
+# Local environment (spec section 11, "Local"): MCP server + writable PostgreSQL, API key authentication.
+# Start: make compose-up    Keys: 'dev-key-<agent-id>' (see api-keys.yaml). Placeholder values only.
+name: titanic-mcp-local
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: tmcp
+      POSTGRES_PASSWORD: local-postgres-password-change-me
+      POSTGRES_DB: titanic_working
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "tmcp", "-d", "titanic_working"]
+      interval: 3s
+      retries: 20
+    volumes: [pgdata:/var/lib/postgresql/data]
+
+  titanic-mcp:
+    image: titanic-mcp:1.0.0
+    depends_on:
+      postgres: {condition: service_healthy}
+    ports: ["8000:8000", "9090:9090"]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      TMCP_ENV: development
+      TMCP_AUTH_MODE: api_key
+      TMCP_API_KEYS_FILE: /etc/tmcp/api-keys.yaml
+      TMCP_RESOURCE_URL: http://localhost:8000/mcp
+      TMCP_WORKING_DB_URL: postgresql://tmcp:local-postgres-password-change-me@postgres:5432/titanic_working
+      TMCP_POLICY_PATH: /etc/tmcp/policy/policy.yaml
+    volumes:
+      - ./api-keys.yaml:/etc/tmcp/api-keys.yaml:ro
+      - ../../policy:/etc/tmcp/policy:ro
+    healthcheck:
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz/ready', timeout=2)"]
+      interval: 5s
+      retries: 20
+
+volumes:
+  pgdata: {}
