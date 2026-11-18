@@ -14,7 +14,7 @@ import json
 import random
 import time
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
 
 import httpx2
@@ -164,22 +164,23 @@ async def traffic(seconds: int) -> None:
         ("steerage-agent", "describe_table", {"table": "passengers"}),
         ("reporting-agent", "run_sql", {"sql": "SELECT 1"}),
     ]
-    clients: dict[str, Client] = {}
-    stack = []
-    for agent in {c[0] for c in calls}:
-        cm = connect(agent)
-        clients[agent] = await cm.__aenter__()
-        stack.append(cm)
     end, count = time.monotonic() + seconds, 0
-    try:
-        while time.monotonic() < end:
-            agent, tool, args = random.choice(calls)
-            await clients[agent].call_tool(tool, args)
-            count += 1
-            await asyncio.sleep(random.uniform(0.05, 0.3))
-    finally:
-        for cm in stack:
-            await cm.__aexit__(None, None, None)
+    # AsyncExitStack closes the clients in reverse order. The MCP client uses anyio task groups,
+    # which must exit in the reverse order of entry (LIFO), in the same task.
+    async with AsyncExitStack() as stack:
+        clients: dict[str, Client] = {}
+        for agent in sorted({c[0] for c in calls}):
+            clients[agent] = await stack.enter_async_context(connect(agent))
+        try:
+            while time.monotonic() < end:
+                agent, tool, args = random.choice(calls)
+                await clients[agent].call_tool(tool, args)
+                count += 1
+                if count % 50 == 0:
+                    print(f"  {count} calls sent", flush=True)
+                await asyncio.sleep(random.uniform(0.05, 0.3))
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            print("Stopped.")
     print(f"{count} calls sent.")
 
 
