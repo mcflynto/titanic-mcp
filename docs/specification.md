@@ -679,7 +679,7 @@ Release 1.0.0 implements this specification. The table shows the points where th
 | Readiness (MON-05) | JWKS must be available | After one successful JWKS download, a short IdP outage (10 minutes or less) does not make pods unready. | Cached keys still validate tokens. Otherwise all pods go unready together. |
 | Trace sampling | 10 %, errors always | 10 % head sampling in the server. The OTel collector must keep error traces (tail sampling). The demo uses 100 %. | The server cannot know at the start of a trace if it will fail. |
 | Sentry (LOG-06) | SHOULD | Not implemented. Errors are in the JSON logs and the alerts. | Optional requirement. |
-| Container base | Chainguard or distroless | `gcr.io/distroless/cc-debian12:nonroot` with a uv-managed Python 3.12 | Free, no shell, no package manager (CON-02). |
+| Container base | Chainguard or distroless | `gcr.io/distroless/cc-debian13:nonroot` with a uv-managed Python 3.12, without pip and ensurepip | Free, no shell, no package manager (CON-02). Debian 13, because the Debian 12 image had a fixed HIGH CVE in libssl3; pip removed because it vendors an old setuptools (CON-08). |
 | Ingress in the demo | Ingress with TLS | NodePort with kind port mappings. The chart has an Ingress template for other environments. | ingress-nginx is retired. Gateway API is the recommended long-term option. |
 | Logs in the demo | Log platform | `kubectl logs`. No Loki in the demo. | Fewer resources on a laptop. |
 | CI/CD | Pipeline runs | `.github/workflows` exist, but they did not run yet (OP-06). | Demo scope. |

@@ -6,13 +6,19 @@ ARG DB_COMMIT=867f5bae5c0b53b0035bacb671ae1d3b07bc18ce
 ARG DB_SHA256=aa9cf7683387fefae3759a6d51fd03c917836fdc9c61299ffea15de5bf5f327d
 
 # ---- stage 1: build ---------------------------------------------------------------------------------
-FROM debian:bookworm-slim AS build
+FROM debian:trixie-slim AS build
 COPY --from=ghcr.io/astral-sh/uv:0.13.9 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_INSTALL_DIR=/python \
     UV_PYTHON_PREFERENCE=only-managed
-RUN uv python install 3.12
+# pip and ensurepip are not needed at runtime (uv installs all packages at build time).
+# Removing them also removes the old packages that pip vendors (Trivy finding CVE-2025-47273).
+RUN uv python install 3.12 \
+ && rm -rf /python/cpython-*/lib/python3.12/site-packages/pip \
+           /python/cpython-*/lib/python3.12/site-packages/pip-*.dist-info \
+           /python/cpython-*/lib/python3.12/ensurepip \
+           /python/cpython-*/bin/pip*
 WORKDIR /app
 COPY pyproject.toml uv.lock README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
@@ -20,7 +26,7 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-editable
 
 # ---- stage 2: data (DS-01: pinned commit and checksum) ----------------------------------------------
-FROM debian:bookworm-slim AS data
+FROM debian:trixie-slim AS data
 ARG DB_COMMIT
 ARG DB_SHA256
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
@@ -30,7 +36,7 @@ RUN curl -fsSL --retry 3 -o /titanic.db \
  && chmod 0444 /titanic.db
 
 # ---- stage 3: runtime (CON-02: no shell, no package manager) ----------------------------------------
-FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
+FROM gcr.io/distroless/cc-debian13:nonroot AS runtime
 ARG DB_SHA256
 ARG GIT_COMMIT=unknown
 ARG BUILD_DATE=unknown
