@@ -43,7 +43,7 @@ jobs:
         with:
           image: ${{ steps.meta.outputs.image }}@${{ steps.build.outputs.digest }}
           format: spdx-json
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: Push the Helm chart
         run: |
           helm package charts/titanic-mcp --version "${{ steps.meta.outputs.version }}" --app-version "${{ steps.meta.outputs.version }}"

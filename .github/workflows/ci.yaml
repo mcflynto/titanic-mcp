@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       - name: helm lint (DEP-02)
         run: |
           helm lint charts/titanic-mcp
