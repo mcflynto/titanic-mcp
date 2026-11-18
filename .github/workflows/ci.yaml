@@ -42,7 +42,7 @@ jobs:
       - run: make data
       - name: Unit and integration tests (TST-01, TST-02, QS-09)
         run: uv run pytest --cov --cov-report=xml --cov-fail-under=85
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with: {name: coverage, path: coverage.xml}
 
   security:
