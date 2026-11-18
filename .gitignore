@@ -12,3 +12,6 @@ dist/
 data/
 .env
 *.local.yaml
+
+# Presentation material is kept local only.
+presentation/
