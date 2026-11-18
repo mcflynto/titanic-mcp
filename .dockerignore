@@ -1,0 +1,16 @@
+.git
+.venv
+.github
+.mypy_cache
+.ruff_cache
+.pytest_cache
+**/__pycache__
+data
+tests
+charts
+deploy
+dashboards
+docs
+scripts
+*.md
+!README.md

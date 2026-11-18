@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "tmcp.fullname" . }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tmcp.fullname" . }}-policy
+  labels: {{- include "tmcp.labels" . | nindent 4 }}
+data:
+  policy.yaml: |
+{{- if .Values.policy.inline }}
+{{ .Values.policy.inline | indent 4 }}
+{{- else }}
+{{ .Files.Get "files/policy.yaml" | indent 4 }}
+{{- end }}
+---
+{{- if not .Values.secrets.existingSecret }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "tmcp.secretName" . }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  WORKING_DB_URL: {{ .Values.secrets.create.workingDbUrl | quote }}
+  API_KEYS: {{ .Values.secrets.create.apiKeysYaml | quote }}
+---
+{{- end }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "tmcp.fullname" . }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector: {{- include "tmcp.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
+    - name: metrics
+      port: {{ .Values.service.metricsPort }}
+      targetPort: metrics

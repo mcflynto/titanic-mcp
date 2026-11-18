@@ -1,0 +1,106 @@
+# Default values: production-like. Environment files (for example values-demo.yaml) change only what is different.
+# DEP-01: the same image goes to all environments; only these values change.
+
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/example-org/titanic-mcp   # placeholder registry
+  tag: "1.0.0"                                    # CON-06: never 'latest'
+  digest: ""                                      # set a digest for production (sha256:...)
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+config:
+  env: production
+  logLevel: INFO
+  resourceUrl: https://titanic-mcp.example.com/mcp
+  allowedHosts: "titanic-mcp.example.com,titanic-mcp.example.com:*"
+  allowedOrigins: "https://titanic-mcp.example.com"
+  queryTimeoutS: 5
+  changeRequestTtlHours: 168
+  policyReloadIntervalS: 10
+  auth:
+    mode: jwt                    # AUTH-05: api_key is refused in staging/production
+    issuer: https://idp.example.com/realms/titanic
+    jwksUrl: https://idp.example.com/realms/titanic/protocol/openid-connect/certs
+    agentIdClaim: azp
+    trustTokenRoles: false
+  tracing:
+    otlpEndpoint: ""             # for example http://otel-collector.observability:4317
+    sampleRate: 0.1
+
+# Writable working dataset (OP-01). The URL comes from the Secret (key WORKING_DB_URL).
+workingDatabase:
+  enabled: true
+
+secrets:
+  # Use an existing Secret (recommended: External Secrets Operator). Keys: WORKING_DB_URL, API_KEYS (optional).
+  existingSecret: ""
+  # Only used when existingSecret is empty. Placeholder values - never commit real values.
+  create:
+    workingDbUrl: ""
+    apiKeysYaml: ""
+
+# Access policy (spec section 6). Mounted as a directory, so that a change reaches the pods without a restart.
+policy:
+  fromFile: true                 # use files/policy.yaml in this chart
+  inline: ""                     # or set the policy YAML here
+
+service:
+  type: ClusterIP
+  port: 8000
+  metricsPort: 9090
+  nodePort: null
+
+ingress:
+  enabled: false
+  className: ""                  # for example 'nginx' or 'traefik'; Gateway API is the long-term option
+  host: titanic-mcp.example.com
+  tlsSecretName: titanic-mcp-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: "1", memory: 512Mi}
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespace: ingress-nginx
+  prometheusNamespace: monitoring
+  extraIngress: []
+  # Egress: DNS is always allowed. Add the IdP, the database and the OTel collector here.
+  extraEgress: []
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    labels: {}
+  prometheusRule:
+    enabled: true
+    labels: {}
+    runbookBaseUrl: https://github.com/example-org/titanic-mcp/blob/main/docs/runbooks
+  grafanaDashboard:
+    enabled: true
+    labels:
+      grafana_dashboard: "1"
+
+terminationGracePeriodSeconds: 30
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

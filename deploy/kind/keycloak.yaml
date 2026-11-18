@@ -1,0 +1,225 @@
+# Identity provider for the demo (OP-02: Keycloak). Each agent is a confidential OAuth client
+# (client credentials flow). Client secrets are placeholders: '<agent-id>-secret-change-me'.
+# Tokens carry aud=http://localhost:18080/mcp (AUTH-02) and azp=<agent-id> (the agent ID claim).
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: keycloak-realm, namespace: titanic-mcp}
+data:
+  titanic-realm.json: |
+    {
+      "realm": "titanic",
+      "enabled": true,
+      "accessTokenLifespan": 300,
+      "sslRequired": "none",
+      "clientScopes": [
+        {
+          "name": "titanic-mcp-audience",
+          "protocol": "openid-connect",
+          "attributes": {
+            "include.in.token.scope": "false"
+          },
+          "protocolMappers": [
+            {
+              "name": "mcp-audience",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-audience-mapper",
+              "config": {
+                "included.custom.audience": "http://localhost:18080/mcp",
+                "access.token.claim": "true",
+                "id.token.claim": "false",
+                "introspection.token.claim": "true"
+              }
+            },
+            {
+              "name": "client-id",
+              "protocol": "openid-connect",
+              "protocolMapper": "oidc-usersessionmodel-note-mapper",
+              "config": {
+                "user.session.note": "client_id",
+                "claim.name": "client_id",
+                "jsonType.label": "String",
+                "access.token.claim": "true",
+                "id.token.claim": "false"
+              }
+            }
+          ]
+        }
+      ],
+      "clients": [
+        {
+          "clientId": "reporting-agent",
+          "name": "reporting-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "reporting-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        },
+        {
+          "clientId": "churn-agent",
+          "name": "churn-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "churn-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        },
+        {
+          "clientId": "steerage-agent",
+          "name": "steerage-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "steerage-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        },
+        {
+          "clientId": "research-agent",
+          "name": "research-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "research-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        },
+        {
+          "clientId": "curation-agent",
+          "name": "curation-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "curation-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        },
+        {
+          "clientId": "review-agent",
+          "name": "review-agent",
+          "enabled": true,
+          "protocol": "openid-connect",
+          "publicClient": false,
+          "clientAuthenticatorType": "client-secret",
+          "secret": "review-agent-secret-change-me",
+          "serviceAccountsEnabled": true,
+          "standardFlowEnabled": false,
+          "directAccessGrantsEnabled": false,
+          "implicitFlowEnabled": false,
+          "fullScopeAllowed": false,
+          "defaultClientScopes": [
+            "titanic-mcp-audience"
+          ],
+          "optionalClientScopes": [],
+          "attributes": {
+            "access.token.lifespan": "300"
+          }
+        }
+      ]
+    }
+---
+apiVersion: v1
+kind: Secret
+metadata: {name: keycloak-admin, namespace: titanic-mcp}
+type: Opaque
+stringData:
+  KC_BOOTSTRAP_ADMIN_USERNAME: admin
+  KC_BOOTSTRAP_ADMIN_PASSWORD: demo-admin-password-change-me   # placeholder
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: keycloak, namespace: titanic-mcp}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: keycloak}}
+  template:
+    metadata: {labels: {app: keycloak}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 1000, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.4.0
+          args: [start-dev, --import-realm]
+          envFrom: [{secretRef: {name: keycloak-admin}}]
+          env:
+            # The issuer ('iss') must be the URL that agents use from the host. The MCP server fetches
+            # the keys inside the cluster (backchannel), so it uses the internal service URL.
+            - {name: KC_HOSTNAME, value: "http://localhost:18081"}
+            - {name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true"}
+            - {name: KC_HTTP_ENABLED, value: "true"}
+            - {name: KC_HEALTH_ENABLED, value: "true"}
+            - {name: JAVA_OPTS_KC_HEAP, value: "-XX:MaxRAMPercentage=70"}
+          ports: [{containerPort: 8080, name: http}, {containerPort: 9000, name: management}]
+          readinessProbe:
+            httpGet: {path: /health/ready, port: management}
+            periodSeconds: 5
+            failureThreshold: 60
+          resources: {requests: {cpu: 200m, memory: 512Mi}, limits: {cpu: "2", memory: 1Gi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: realm, mountPath: /opt/keycloak/data/import, readOnly: true}]
+      volumes: [{name: realm, configMap: {name: keycloak-realm}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: keycloak, namespace: titanic-mcp}
+spec:
+  type: NodePort
+  selector: {app: keycloak}
+  ports: [{name: http, port: 8080, targetPort: 8080, nodePort: 30081}]

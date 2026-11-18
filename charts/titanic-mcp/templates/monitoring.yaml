@@ -1,0 +1,102 @@
+{{- $name := include "tmcp.fullname" . -}}
+{{- $runbooks := .Values.monitoring.prometheusRule.runbookBaseUrl -}}
+{{- if .Values.monitoring.serviceMonitor.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $name }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}{{ with .Values.monitoring.serviceMonitor.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  selector:
+    matchLabels: {{- include "tmcp.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+---
+{{- end }}
+{{- if .Values.monitoring.prometheusRule.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ $name }}
+  labels: {{- include "tmcp.labels" . | nindent 4 }}{{ with .Values.monitoring.prometheusRule.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+spec:
+  groups:
+    - name: titanic-mcp.slo
+      rules:
+        - record: tmcp:error_ratio:rate5m
+          expr: |
+            sum(rate(tmcp_requests_total{namespace="{{ .Release.Namespace }}",status=~"INTERNAL|DATABASE_UNAVAILABLE"}[5m]))
+            / clamp_min(sum(rate(tmcp_requests_total{namespace="{{ .Release.Namespace }}"}[5m])), 1e-9)
+        - record: tmcp:error_ratio:rate1h
+          expr: |
+            sum(rate(tmcp_requests_total{namespace="{{ .Release.Namespace }}",status=~"INTERNAL|DATABASE_UNAVAILABLE"}[1h]))
+            / clamp_min(sum(rate(tmcp_requests_total{namespace="{{ .Release.Namespace }}"}[1h])), 1e-9)
+    - name: titanic-mcp.alerts
+      rules:
+        - alert: TmcpHighErrorRate
+          expr: tmcp:error_ratio:rate5m > 0.02
+          for: 5m
+          labels: {severity: critical, service: titanic-mcp}
+          annotations:
+            summary: More than 2 % of MCP calls fail with INTERNAL or DATABASE_UNAVAILABLE.
+            runbook_url: {{ $runbooks }}/TmcpHighErrorRate.md
+        - alert: TmcpErrorBudgetBurn
+          expr: tmcp:error_ratio:rate1h > (14 * 0.005) and tmcp:error_ratio:rate5m > (14 * 0.005)
+          for: 2m
+          labels: {severity: critical, service: titanic-mcp}
+          annotations:
+            summary: The 99.5 % availability SLO error budget burns 14 times too fast.
+            runbook_url: {{ $runbooks }}/TmcpErrorBudgetBurn.md
+        - alert: TmcpHighLatency
+          expr: histogram_quantile(0.95, sum by (le) (rate(tmcp_request_duration_seconds_bucket{namespace="{{ .Release.Namespace }}"}[5m]))) > 1
+          for: 10m
+          labels: {severity: warning, service: titanic-mcp}
+          annotations:
+            summary: The p95 latency of MCP calls is more than 1 s.
+            runbook_url: {{ $runbooks }}/TmcpHighLatency.md
+        - alert: TmcpAuthFailureSpike
+          expr: sum(rate(tmcp_auth_failures_total{namespace="{{ .Release.Namespace }}"}[5m])) * 60 > 20
+          for: 5m
+          labels: {severity: warning, service: titanic-mcp}
+          annotations:
+            summary: More than 20 failed authentications per minute (possible attack).
+            runbook_url: {{ $runbooks }}/TmcpAuthFailureSpike.md
+        - alert: TmcpPermissionDeniedSpike
+          expr: sum by (agent_id) (rate(tmcp_permission_denied_total{namespace="{{ .Release.Namespace }}"}[5m])) * 60 > 10
+          for: 10m
+          labels: {severity: info, service: titanic-mcp}
+          annotations:
+            summary: "Agent {{`{{ $labels.agent_id }}`}} gets more than 10 denied calls per minute (configuration problem)."
+            runbook_url: {{ $runbooks }}/TmcpPermissionDeniedSpike.md
+        - alert: TmcpSqlRejected
+          expr: sum by (reason) (increase(tmcp_query_rejected_total{namespace="{{ .Release.Namespace }}",reason=~"forbidden_clause|not_select|system_table|function|multiple_statements|qualified_name|table_function"}[5m])) > 0
+          labels: {severity: info, service: titanic-mcp}
+          annotations:
+            summary: "The SQL guard rejected a dangerous statement (reason {{`{{ $labels.reason }}`}}). Examine the audit log."
+            runbook_url: {{ $runbooks }}/TmcpSqlRejected.md
+        - alert: TmcpPodsNotReady
+          expr: kube_deployment_status_replicas_available{namespace="{{ .Release.Namespace }}",deployment="{{ $name }}"} < 2
+          for: 5m
+          labels: {severity: critical, service: titanic-mcp}
+          annotations:
+            summary: Fewer than 2 pods of the MCP server are ready.
+            runbook_url: {{ $runbooks }}/TmcpPodsNotReady.md
+        - alert: TmcpPolicyReloadFailed
+          expr: increase(tmcp_policy_reload_errors_total{namespace="{{ .Release.Namespace }}"}[10m]) > 0
+          labels: {severity: warning, service: titanic-mcp}
+          annotations:
+            summary: A new policy file is not valid. The pods keep the old policy.
+            runbook_url: {{ $runbooks }}/TmcpPolicyReloadFailed.md
+---
+{{- end }}
+{{- if .Values.monitoring.grafanaDashboard.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-dashboard
+  labels: {{- include "tmcp.labels" . | nindent 4 }}{{ with .Values.monitoring.grafanaDashboard.labels }}{{ toYaml . | nindent 4 }}{{ end }}
+data:
+  titanic-mcp.json: |
+{{ .Files.Get "files/dashboard.json" | indent 4 }}
+{{- end }}

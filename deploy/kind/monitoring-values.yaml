@@ -1,0 +1,25 @@
+# kube-prometheus-stack for the demo: Prometheus, Alertmanager, Grafana, kube-state-metrics.
+grafana:
+  adminPassword: demo-grafana-password-change-me   # placeholder; user 'admin'
+  service: {type: NodePort, nodePort: 30300}
+  sidecar:
+    dashboards: {enabled: true, label: grafana_dashboard, searchNamespace: ALL}
+  defaultDashboardsEnabled: false
+  grafana.ini:
+    auth.anonymous: {enabled: true, org_role: Viewer}
+prometheus:
+  service: {type: NodePort, nodePort: 30090}
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    evaluationInterval: 15s
+    scrapeInterval: 15s
+    retention: 1d
+    resources: {requests: {cpu: 100m, memory: 400Mi}}
+alertmanager:
+  alertmanagerSpec: {resources: {requests: {cpu: 10m, memory: 32Mi}}}
+nodeExporter: {enabled: false}
+kubeEtcd: {enabled: false}
+kubeControllerManager: {enabled: false}
+kubeScheduler: {enabled: false}
+kubeProxy: {enabled: false}

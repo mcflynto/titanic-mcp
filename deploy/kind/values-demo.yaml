@@ -1,0 +1,51 @@
+# Helm values for the kind demo environment. Only the differences from values.yaml.
+image:
+  repository: titanic-mcp
+  tag: "1.0.0"
+  pullPolicy: Never           # the image is loaded into kind with 'kind load docker-image'
+
+config:
+  env: demo
+  resourceUrl: http://localhost:18080/mcp
+  allowedHosts: "localhost:*,127.0.0.1:*,titanic-mcp:*,titanic-mcp.titanic-mcp.svc:*"
+  allowedOrigins: "http://localhost:*,http://127.0.0.1:*"
+  auth:
+    mode: jwt
+    issuer: http://localhost:18081/realms/titanic
+    jwksUrl: http://keycloak.titanic-mcp.svc:8080/realms/titanic/protocol/openid-connect/certs
+  tracing:
+    otlpEndpoint: http://jaeger.titanic-mcp.svc:4317
+    sampleRate: 1.0           # keep all traces in the demo
+
+secrets:
+  create:
+    # Placeholder password; it agrees with deploy/kind/postgres.yaml.
+    workingDbUrl: postgresql://tmcp:demo-postgres-password-change-me@postgres.titanic-mcp.svc:5432/titanic_working
+
+service:
+  type: NodePort
+  nodePort: 30080
+
+resources:
+  requests: {cpu: 50m, memory: 128Mi}
+  limits: {cpu: "1", memory: 512Mi}
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 5
+
+networkPolicy:
+  enabled: true
+  ingressControllerNamespace: kube-system
+  prometheusNamespace: monitoring
+  extraIngress:
+    - ports: [{port: 8000, protocol: TCP}]  # demo: NodePort traffic from the host (no ingress controller)
+  extraEgress:
+    - to: [{podSelector: {}}]               # Keycloak, PostgreSQL and Jaeger in the same namespace
+
+monitoring:
+  serviceMonitor:
+    labels: {release: monitoring}
+  prometheusRule:
+    labels: {release: monitoring}
