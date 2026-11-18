@@ -194,7 +194,8 @@ class WorkingDatabase:
             metrics.CHANGE_REQUESTS.labels("expired").inc(len(expired))
 
     async def _current_row(self, conn: asyncpg.Connection, passenger_id: int, *, lock: bool) -> dict[str, Any] | None:
-        sql = f"SELECT {', '.join(WRITABLE_COLUMNS)} FROM passengers WHERE passenger_id = $1"
+        # Column names come only from the constant WRITABLE_COLUMNS; the value is a bound parameter.
+        sql = f"SELECT {', '.join(WRITABLE_COLUMNS)} FROM passengers WHERE passenger_id = $1"  # nosec B608
         record = await conn.fetchrow(sql + (" FOR UPDATE" if lock else ""), passenger_id)
         return dict(record) if record else None
 
@@ -286,7 +287,8 @@ class WorkingDatabase:
             cols = [c for c in WRITABLE_COLUMNS if c in payload]
             placeholders = ", ".join(f"${i}" for i in range(1, len(cols) + 1))
             new_id = await conn.fetchval(
-                f"INSERT INTO passengers ({', '.join(cols)}) VALUES ({placeholders}) RETURNING passenger_id",
+                # cols is a subset of the constant WRITABLE_COLUMNS; all values are bound parameters.
+                f"INSERT INTO passengers ({', '.join(cols)}) VALUES ({placeholders}) RETURNING passenger_id",  # nosec B608
                 *[payload[c] for c in cols],
             )
             return "applied", {"passenger_id": new_id}
@@ -301,7 +303,8 @@ class WorkingDatabase:
             cols = [c for c in WRITABLE_COLUMNS if c in payload]
             assignments = ", ".join(f"{c} = ${i}" for i, c in enumerate(cols, start=2))
             await conn.execute(
-                f"UPDATE passengers SET {assignments} WHERE passenger_id = $1",
+                # assignments use only names from WRITABLE_COLUMNS; all values are bound parameters.
+                f"UPDATE passengers SET {assignments} WHERE passenger_id = $1",  # nosec B608
                 passenger_id,
                 *[payload[c] for c in cols],
             )
@@ -326,6 +329,8 @@ def _read_reference_rows(reference_db: Path) -> list[tuple[Any, ...]]:
     try:
         conn.execute(REFERENCE_VIEW_SQL)
         cols = ", ".join(["passenger_id", *WRITABLE_COLUMNS])
-        return [tuple(r) for r in conn.execute(f"SELECT {cols} FROM passengers ORDER BY passenger_id")]
+        # cols is built from the constant WRITABLE_COLUMNS.
+        sql = f"SELECT {cols} FROM passengers ORDER BY passenger_id"  # nosec B608
+        return [tuple(r) for r in conn.execute(sql)]
     finally:
         conn.close()

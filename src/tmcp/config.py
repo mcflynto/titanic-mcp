@@ -21,7 +21,8 @@ class Settings(BaseSettings):
 
     env: Environment = "development"
     service_name: str = "titanic-mcp"
-    host: str = "0.0.0.0"  # noqa: S104 - the container must listen on all interfaces
+    # The container must listen on all interfaces.
+    host: str = "0.0.0.0"  # noqa: S104  # nosec B104
     port: int = 8000
     metrics_port: int = 9090
 

@@ -22,7 +22,8 @@ class JwtTokenVerifier(TokenVerifier):
     """Validates OAuth 2.1 access tokens (JWT) from the IdP with the public keys (JWKS)."""
 
     def __init__(self, settings: Settings) -> None:
-        assert settings.jwks_url and settings.jwt_issuer
+        if not (settings.jwks_url and settings.jwt_issuer):
+            raise ValueError("jwt mode needs TMCP_JWKS_URL and TMCP_JWT_ISSUER")
         self._issuer = settings.jwt_issuer
         self._audience = settings.audience
         self._algorithms = settings.jwt_algorithms
@@ -116,6 +117,7 @@ class ApiKeyTokenVerifier(TokenVerifier):
 
 def build_verifier(settings: Settings) -> JwtTokenVerifier | ApiKeyTokenVerifier:
     if settings.auth_mode == "api_key":
-        assert settings.api_keys_file is not None
+        if settings.api_keys_file is None:
+            raise ValueError("api_key mode needs TMCP_API_KEYS_FILE")
         return ApiKeyTokenVerifier(settings.api_keys_file, settings.resource_url)
     return JwtTokenVerifier(settings)

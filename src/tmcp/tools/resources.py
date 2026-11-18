@@ -84,7 +84,8 @@ async def _schema(perms: Permissions) -> Any:
         tables = {}
         for table in perms.visible_tables(dataset):
             access = perms.table(dataset, table.name)
-            assert access is not None
+            if access is None:
+                continue
             tables[table.name] = {
                 "description": table.description,
                 "columns": [

@@ -17,7 +17,7 @@ from tmcp.errors import AppError, ErrorCode, denied, rejected
 from tmcp.observability import metrics
 
 if TYPE_CHECKING:
-    from tmcp.policy.engine import Permissions
+    from tmcp.policy.engine import Permissions, TableAccess
 
 ALLOWED_FUNCTIONS = frozenset(
     {
@@ -74,6 +74,13 @@ def parse_row_filter(text: str, table: Table) -> exp.Expr:
     except AppError as exc:
         raise ValueError(f"Row filter '{text}': {exc.message}") from exc
     return node
+
+
+def _require_access(perms: "Permissions", dataset: Dataset, table: Table) -> "TableAccess":
+    access = perms.table(dataset, table.name)
+    if access is None:  # not reachable: the table was checked before; never trust an assert here
+        raise denied(f"You have no permission for the table '{table.name}'.")
+    return access
 
 
 @dataclass
@@ -145,8 +152,7 @@ def guard_sql(sql: str, *, dataset: Dataset, perms: "Permissions", max_rows: int
 
     denied_columns: set[str] = set()
     for table in referenced.values():
-        access = perms.table(dataset, table.name)
-        assert access is not None
+        access = _require_access(perms, dataset, table)
         denied_columns |= set(table.column_names - access.columns)
     for column in tree.find_all(exp.Column):
         if column.name in denied_columns:
@@ -155,8 +161,7 @@ def guard_sql(sql: str, *, dataset: Dataset, perms: "Permissions", max_rows: int
 
     # PERM-05: replace restricted tables with filtered subqueries.
     for node, table in to_rewrite:
-        access = perms.table(dataset, table.name)
-        assert access is not None
+        access = _require_access(perms, dataset, table)
         alias = node.alias or table.name
         subquery = _restricted_source(table, access.columns, access.row_filter).subquery(alias)
         node.replace(subquery)
