@@ -15,3 +15,6 @@ data/
 
 # Presentation material is kept local only.
 presentation/
+
+# macOS Finder metadata
+.DS_Store
