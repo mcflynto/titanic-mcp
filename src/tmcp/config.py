@@ -56,6 +56,10 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:*", "http://127.0.0.1:*"]
     )
 
+    # HTTP keep-alive: longer than the idle timeout of clients and load balancers (often 60 s), so that the
+    # server does not close a connection at the moment when a client sends a new request on it.
+    keep_alive_timeout_s: int = Field(75, ge=1)
+
     # Query limits (section 7)
     query_timeout_s: float = 5.0
     max_sql_length: int = 10_000

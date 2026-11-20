@@ -465,6 +465,7 @@ The server reads all configuration from environment variables with the prefix `T
 | `TMCP_API_KEYS_FILE` | none | File with API key hashes (Secret), only for `api_key` mode |
 | `TMCP_ALLOWED_ORIGINS` | empty | Permitted `Origin` values (MCP-06) |
 | `TMCP_QUERY_TIMEOUT_S` | `5` | Default query timeout |
+| `TMCP_KEEP_ALIVE_TIMEOUT_S` | `75` | HTTP keep-alive in seconds. It MUST be longer than the idle timeout of clients and load balancers. |
 | `TMCP_LOG_LEVEL` | `INFO` | Log level |
 | `TMCP_OTEL_ENDPOINT` | none | OTLP endpoint. No value disables traces. |
 | `TMCP_TRACE_SAMPLE_RATE` | `0.1` | Trace sample rate |

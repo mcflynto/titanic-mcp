@@ -9,7 +9,7 @@ import subprocess
 import time
 
 import httpx2
-from demo import MCP_URL, get_token  # scripts/ is on sys.path when run as a file
+from demo import CLIENT_LIMITS, MCP_URL, get_token  # scripts/ is on sys.path when run as a file
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 
@@ -32,7 +32,7 @@ async def main() -> None:
     while status.poll() is None or time.monotonic() - start < 10:
         try:
             # A new connection for each call, so that each call can reach a different pod.
-            http = httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=10)
+            http = httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=10, limits=CLIENT_LIMITS)
             async with Client(streamable_http_client(MCP_URL, http_client=http)) as client:
                 result = await client.call_tool("aggregate_passengers", {"group_by": ["class"]})
             if result.is_error and result.structured_content["error"]["code"] == "RATE_LIMITED":

@@ -25,6 +25,11 @@ MCP_URL = "http://localhost:18080/mcp"
 TOKEN_URL = "http://localhost:18081/realms/titanic/protocol/openid-connect/token"
 AGENTS = ["reporting-agent", "churn-agent", "steerage-agent", "research-agent", "curation-agent", "review-agent"]
 
+# Close idle connections before the server does (server keep-alive: 75 s, TMCP_KEEP_ALIVE_TIMEOUT_S).
+# If both sides use the same value, the client can send on a connection that the server is closing.
+CLIENT_LIMITS = httpx2.Limits(keepalive_expiry=2.0)
+TRAFFIC_ROUND_S = 60  # new token and new sessions each round (access tokens are valid for 5 minutes)
+
 BOLD, DIM, GREEN, RED, YELLOW, RESET = "\033[1m", "\033[2m", "\033[32m", "\033[31m", "\033[33m", "\033[0m"
 
 
@@ -49,7 +54,7 @@ async def get_token(agent: str) -> str:
 @asynccontextmanager
 async def connect(agent: str) -> AsyncIterator[Client]:
     token = await get_token(agent)
-    http = httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    http = httpx2.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=30, limits=CLIENT_LIMITS)
     async with Client(streamable_http_client(MCP_URL, http_client=http)) as client:
         yield client
 
@@ -164,24 +169,33 @@ async def traffic(seconds: int) -> None:
         ("steerage-agent", "describe_table", {"table": "passengers"}),
         ("reporting-agent", "run_sql", {"sql": "SELECT 1"}),
     ]
-    end, count = time.monotonic() + seconds, 0
-    # AsyncExitStack closes the clients in reverse order. The MCP client uses anyio task groups,
-    # which must exit in the reverse order of entry (LIFO), in the same task.
-    async with AsyncExitStack() as stack:
-        clients: dict[str, Client] = {}
-        for agent in sorted({c[0] for c in calls}):
-            clients[agent] = await stack.enter_async_context(connect(agent))
+    agents = sorted({c[0] for c in calls})
+    end, count, errors = time.monotonic() + seconds, 0, 0
+    while time.monotonic() < end:
+        round_end = min(end, time.monotonic() + TRAFFIC_ROUND_S)
         try:
-            while time.monotonic() < end:
-                agent, tool, args = random.choice(calls)
-                await clients[agent].call_tool(tool, args)
-                count += 1
-                if count % 50 == 0:
-                    print(f"  {count} calls sent", flush=True)
-                await asyncio.sleep(random.uniform(0.05, 0.3))
-        except (KeyboardInterrupt, asyncio.CancelledError):
-            print("Stopped.")
-    print(f"{count} calls sent.")
+            # AsyncExitStack closes the clients in reverse order. The MCP client uses anyio task groups,
+            # which must exit in the reverse order of entry (LIFO), in the same task.
+            async with AsyncExitStack() as stack:
+                clients = {agent: await stack.enter_async_context(connect(agent)) for agent in agents}
+                while time.monotonic() < round_end:
+                    agent, tool, args = random.choice(calls)
+                    await clients[agent].call_tool(tool, args)
+                    count += 1
+                    if count % 50 == 0:
+                        print(f"  {count} calls sent", flush=True)
+                    await asyncio.sleep(random.uniform(0.05, 0.3))
+        except Exception as exc:  # a transport error ends only this round, not the traffic
+            errors += 1
+            print(f"  {YELLOW}connection error, new sessions in 1 s:{RESET} {_root_cause(exc)}", flush=True)
+            await asyncio.sleep(1)
+    print(f"{count} calls sent. Connection errors: {errors}.")
+
+
+def _root_cause(exc: BaseException) -> str:
+    while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
+        exc = exc.exceptions[0]
+    return f"{type(exc).__name__}: {exc}"
 
 
 STEPS = {1: step_1, 2: step_2, 3: step_3, 4: step_4, 5: step_5}
@@ -203,4 +217,7 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Stopped.")

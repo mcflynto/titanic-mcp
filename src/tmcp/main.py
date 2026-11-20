@@ -206,6 +206,7 @@ def run() -> None:
         log_config=None,
         proxy_headers=True,
         forwarded_allow_ips="*",
+        timeout_keep_alive=settings.keep_alive_timeout_s,
         timeout_graceful_shutdown=20,  # CON-05
         server_header=False,
     )
