@@ -20,7 +20,7 @@ RUN uv python install 3.12 \
            /python/cpython-*/lib/python3.12/ensurepip \
            /python/cpython-*/bin/pip*
 WORKDIR /app
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev --no-editable
