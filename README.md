@@ -100,3 +100,8 @@ The server reads all settings from `TMCP_*` environment variables. Refer to `src
 | `TMCP_WORKING_DB_URL` | PostgreSQL URL of the working dataset (from a Secret). Not set = no working dataset. |
 | `TMCP_POLICY_PATH` | Policy file. The server loads changes without a restart. |
 | `TMCP_OTEL_ENDPOINT` | OTLP endpoint for traces |
+
+## License
+
+The code is under the [MIT License](LICENSE). The Titanic database is not part of this repository: the image build
+downloads it from its source repository at a pinned commit.
