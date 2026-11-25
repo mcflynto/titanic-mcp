@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
         with: {enable-cache: true}
       - run: uv sync --frozen
       - run: uv run ruff check src tests scripts
@@ -36,7 +36,7 @@ jobs:
       TMCP_TEST_PG_URL: postgresql://test:test@localhost:5432/test
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
         with: {enable-cache: true}
       - run: uv sync --frozen
       - run: make data
@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: {fetch-depth: 0}
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - run: uvx bandit -r src -q
       - run: uv export --frozen --no-dev --no-emit-project --format requirements-txt > requirements.txt && uvx pip-audit -r requirements.txt
       - uses: gitleaks/gitleaks-action@v3
@@ -102,7 +102,7 @@ jobs:
     needs: [image, chart]
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - uses: helm/kind-action@v1
         with: {install_only: true}
       - name: Start the demo environment in kind (stage 7)
